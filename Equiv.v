@@ -419,8 +419,7 @@ Proof.
 (** **** Exercise: 2 stars, standard, optional (while_true_nonterm_informal)
 
     Explain what the lemma [while_true_nonterm] means in English.
-
-(* FILL IN HERE *)
+    死循环永远不会有下一个state
 *)
 (** [] *)
 
@@ -490,7 +489,20 @@ Proof.
 Theorem seq_assoc : forall c1 c2 c3,
   cequiv <{(c1;c2);c3}> <{c1;(c2;c3)}>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros c1 c2 c3.
+  split.
+  - intros H.
+    inversion H; subst; clear H; inversion H2; subst; clear H2.
+    eapply E_Seq. { apply H1. }
+    eapply E_Seq. { apply H6. }
+    apply H5.
+  - intros H.
+    inversion H; subst; clear H; inversion H5; subst; clear H5.
+    eapply E_Seq.
+    + eapply E_Seq. {apply H2. }
+      apply H1.
+    + apply H6.
+Qed.
 (** [] *)
 
 (** Proving program properties involving assignments is one place
@@ -521,9 +533,12 @@ Theorem assign_aequiv : forall (X : string) (a : aexp),
 Proof.
   intros X a H st st'.
   split; intros H1; inversion H1; subst.
-  - assert (Hx : st' =[ X := a ]=> (X !-> (aeval st' a) ; st')). 
+  - assert (Hx : st' =[ X:= a]=> (X !-> aeval st' a; st')).
     {apply E_Asgn. reflexivity. }
-    rewrite <- H in Hx. rewrite t_update_same in Hx. apply Hx.
+    unfold aequiv in H.
+    rewrite <- H in Hx.
+    rewrite t_update_same in Hx.
+    apply Hx.
   - rewrite <- H. rewrite t_update_same. apply E_Skip.
 Qed.
 (** [] *)
@@ -770,7 +785,6 @@ Proof.
         apply (Hc1e st st').  apply Hce1.
       * (* subsequent loop execution *)
         apply IHHce2. reflexivity. }
-
   intros. split.
   - apply A; assumption.
   - apply A.
@@ -783,7 +797,25 @@ Theorem CSeq_congruence : forall c1 c1' c2 c2',
   cequiv c1 c1' -> cequiv c2 c2' ->
   cequiv <{ c1;c2 }> <{ c1';c2' }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  assert(
+          Hx: forall c1 c1' c2 c2' st st' , 
+            cequiv c1 c1' -> cequiv c2 c2' -> 
+            st =[ c1;c2 ]=> st' -> st =[ c1';c2' ]=> st' 
+        ).
+        {intros c1 c1' c2 c2' st st' Heqc1 Heqc2 H.
+          inversion H. subst.
+          eapply E_Seq.
+          - apply Heqc1.
+            apply H2.
+          - apply Heqc2.
+            apply H5.
+        }
+  intros. split;
+  apply Hx;
+  try assumption;
+  apply sym_cequiv;
+  assumption.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (CIf_congruence) *)
@@ -792,7 +824,29 @@ Theorem CIf_congruence : forall b b' c1 c1' c2 c2',
   cequiv <{ if b then c1 else c2 end }>
          <{ if b' then c1' else c2' end }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  assert (Hx: forall b b' c1 c1' c2 c2' st st',
+          bequiv b b' -> cequiv c1 c1' -> cequiv c2 c2' -> 
+          st =[if b then c1 else c2 end]=> st' ->
+          st =[if b' then c1' else c2' end]=> st').
+  { intros b b' c1 c1' c2 c2' st st' Heqb Heqc1 Heqc2 H.
+    inversion H; subst; clear H.
+    - apply E_IfTrue.
+      + rewrite <- Heqb.
+        assumption.
+      + apply Heqc1.
+        assumption.
+    - apply E_IfFalse.
+      + rewrite <- Heqb.
+        assumption.
+      + apply Heqc2.
+        assumption.
+  }
+  split; apply Hx;
+  try assumption;
+  try apply sym_bequiv;
+  try apply sym_cequiv;
+  try assumption.
+Qed.
 (** [] *)
 
 (** For example, here are two equivalent programs and a proof of their
@@ -1173,9 +1227,29 @@ Proof.
        become constants after folding *)
       simpl. destruct (n =? n0); reflexivity.
   - (* BLe *)
-    (* FILL IN HERE *) admit.
+    simpl. 
+    destruct (fold_constants_aexp a1) eqn:E1;
+    destruct (fold_constants_aexp a2) eqn:E2;
+    ( simpl; rewrite fold_constants_aexp_sound;
+      rewrite fold_constants_aexp_sound with (a := a2);
+      rewrite E1;
+      rewrite E2;
+      simpl
+    ) ;
+    try reflexivity.
+    destruct (leb n n0) eqn:E3; reflexivity.
   - (* BGt *)
-    (* FILL IN HERE *) admit.
+    simpl. 
+    destruct (fold_constants_aexp a1) eqn:E1;
+    destruct (fold_constants_aexp a2) eqn:E2;
+    ( simpl; rewrite fold_constants_aexp_sound;
+      rewrite fold_constants_aexp_sound with (a := a2);
+      rewrite E1;
+      rewrite E2;
+      simpl
+    ) ;
+    try reflexivity.
+    destruct (leb n n0) eqn:E3; reflexivity.
   - (* BNot *)
     simpl. remember (fold_constants_bexp b) as b' eqn:Heqb'.
     rewrite IHb.
@@ -1186,7 +1260,7 @@ Proof.
     remember (fold_constants_bexp b2) as b2' eqn:Heqb2'.
     rewrite IHb1. rewrite IHb2.
     destruct b1'; destruct b2'; reflexivity.
-(* FILL IN HERE *) Admitted.
+Qed.
 (** [] *)
 
 (** **** Exercise: 3 stars, standard (fold_constants_com_sound)
@@ -1217,7 +1291,28 @@ Proof.
       apply trans_cequiv with c2; try assumption.
       apply if_false; assumption.
   - (* while *)
-    (* FILL IN HERE *) Admitted.
+    Search (cequiv <{ while true do _ end }> <{ while _ do _ end }>).
+    Search (cequiv <{ while _ do _ end }> <{ while true do _ end }>).
+    destruct (fold_constants_bexp b) eqn:E;
+    try (apply while_true;
+          rewrite <- E;
+          apply fold_constants_bexp_sound );
+    try (apply while_false;
+          rewrite <- E;
+          apply fold_constants_bexp_sound);
+    try (apply CWhile_congruence; try rewrite <- E; try apply fold_constants_bexp_sound; try apply IHc).
+Qed.
+    (*
+    + apply while_true.
+      rewrite <- E.
+      apply fold_constants_bexp_sound.
+    + apply while_false.
+      rewrite <- E.
+      apply fold_constants_bexp_sound.
+    + apply CWhile_congruence.
+      * rewrite <- E. apply fold_constants_bexp_sound.
+      * apply IHc.
+    ... *)
 (** [] *)
 
 (* ================================================================= *)
@@ -1390,7 +1485,7 @@ Proof.
   remember <{ X := X + 1;
               Y := X + 1 }>
       as c2.
-  assert (cequiv c1 c2) by (subst; apply Contra).
+  assert (cequiv c1 c2) by (subst; apply Contra). (*这里可以直接apply*)
   clear Contra.
 
   (* ... allows us to show that the command [c2] can terminate
@@ -1462,7 +1557,15 @@ Proof.
 Theorem inequiv_exercise:
   ~ cequiv <{ while true do skip end }> <{ skip }>.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros Contra.
+  remember empty_st as st. 
+  assert (Hs : st =[skip]=> st). { apply E_Skip. }
+  apply Contra in Hs.
+  specialize (while_true_nonterm <{true}> <{skip}> st st) as Hb.
+  apply Hb.
+  - apply refl_bequiv.
+  - assumption.
+Qed.
 (** [] *)
 
 (* ################################################################# *)
@@ -1579,7 +1682,8 @@ Inductive ceval : com -> state -> state -> Prop :=
       st  =[ c ]=> st' ->
       st' =[ while b do c end ]=> st'' ->
       st  =[ while b do c end ]=> st''
-(* FILL IN HERE *)
+  | E_Havoc : forall st x n, (*forall n!!!*)
+      st =[ havoc x ]=> (x !-> n ; st)
 
   where "st =[ c ]=> st'" := (ceval c st st').
 
@@ -1588,12 +1692,16 @@ Inductive ceval : com -> state -> state -> Prop :=
 
 Example havoc_example1 : empty_st =[ havoc X ]=> (X !-> 0).
 Proof.
-(* FILL IN HERE *) Admitted.
+  apply E_Havoc.
+Qed.
 
 Example havoc_example2 :
   empty_st =[ skip; havoc Z ]=> (Z !-> 42).
 Proof.
-(* FILL IN HERE *) Admitted.
+  eapply E_Seq.
+  - apply E_Skip.
+  - apply E_Havoc.
+Qed.
 
 (* Do not modify the following line: *)
 Definition manual_grade_for_Check_rule_for_HAVOC : option (nat*string) := None.
@@ -1623,10 +1731,26 @@ Definition pYX :=
 Theorem pXY_cequiv_pYX :
   cequiv pXY pYX \/ ~cequiv pXY pYX.
 Proof.
+  (*
+    直觉：
+    只要对条件程序中生成的每一个状态forall n m ，都在目标中构造出一个n m输出即可
+  *)
+  left.
+  intros st st'.
+  split; intros H; (*inversion!!!*)
+    inversion H; subst; clear H;
+    inversion H2; subst; clear H2;
+    inversion H5; subst; clear H5.
+  - rewrite t_update_permute.
+    + eapply E_Seq; apply E_Havoc.
+    + discriminate.
+  - rewrite t_update_permute.
+    + eapply E_Seq; apply E_Havoc.
+    + discriminate.
+Qed.
   (* Hint: You may want to use [t_update_permute] at some point,
      in which case you'll probably be left with [X <> Y] as a
      hypothesis. You can use [discriminate] to discharge this. *)
-  (* FILL IN HERE *) Admitted.
 (** [] *)
 
 (** **** Exercise: 4 stars, standard, optional (havoc_copy)
@@ -1642,10 +1766,33 @@ Definition pcopy :=
 (** If you think they are equivalent, then prove it. If you think they
     are not, then prove that.  (Hint: You may find the [assert] tactic
     useful.) *)
-
+(*REVIEW*)
 Theorem ptwice_cequiv_pcopy :
   cequiv ptwice pcopy \/ ~cequiv ptwice pcopy.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  (*直觉：pcopy隐含了X=Y的性质，我们分离出这个性质
+    然后只要让ptwice两次生成的数不一样即可*)
+  right.
+  intros Contra.
+  remember ( Y !-> 1; X !-> 0) as st1.  (*注意顺序*)
+
+  assert (Ht : empty_st =[ptwice]=> st1).
+  { subst. eapply E_Seq; apply E_Havoc. }
+
+  apply Contra in Ht. (*利用cequiv将ptwice上的状态等式转移到pcopy上*)
+  inversion Ht. subst. clear Ht.
+  inversion H4. subst. clear H4.
+  inversion H1. subst. clear H1.
+  simpl in H5.
+  rewrite t_update_eq in H5.
+  (*此时已经出现了矛盾，左侧来自pcopy右侧来自ptwice*)
+  remember (Y !-> n; X !-> n) as st.
+  assert (HContra : st X = st Y). { subst. rewrite t_update_eq. rewrite t_update_neq.
+                          - rewrite t_update_eq. reflexivity.
+                          - discriminate. }
+  rewrite H5 in HContra. 
+  inversion HContra.
+Qed.
 (** [] *)
 
 (** The definition of program equivalence we are using here has some
@@ -1681,12 +1828,52 @@ Definition p2 : com :=
 
 Lemma p1_may_diverge : forall st st', st X <> 0 ->
   ~ st =[ p1 ]=> st'.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  intros st st' H H1.
+  unfold p1 in H1.
+  remember <{while ~ X = 0 do havoc Y; X := X + 1 end}> as while_def.
+  induction H1;
+  try discriminate; inversion Heqwhile_def; subst; clear Heqwhile_def.
+  - Search (negb _ = false).
+    apply negb_false_iff in H0.
+    simpl in H0.
+    Search (_ =? _ = true).
+    apply eqb_eq in H0.
+    apply H in H0.
+    assumption.
+  - (*要利用IHceval2，只需证st' X != 0*)
+    apply IHceval2.
+    + inversion H1_. subst. clear H1_. 
+      (*X : nat >= 0因此只需 X := X + 1就能推出 X <> 0*)
+      inversion H6. subst. clear H6. 
+      rewrite t_update_eq.
+      simpl.
+      intros contra.      
+      Search (_ + _ = 0).
+      apply eq_add_0 in contra.
+      destruct contra as [_ contra].
+      discriminate.
+    + reflexivity.
+Qed.
 
 Lemma p2_may_diverge : forall st st', st X <> 0 ->
   ~ st =[ p2 ]=> st'.
 Proof.
-(* FILL IN HERE *) Admitted.
+  intros st st' H H1.
+  unfold p2 in H1.
+  remember  <{ while ~ (X = 0) do skip end }> as while_def.
+  induction H1;
+  try discriminate; inversion Heqwhile_def; subst; clear Heqwhile_def.
+  - apply negb_false_iff in H0.
+    simpl in H0.
+    apply eqb_eq in H0.
+    apply H in H0.
+    assumption.
+  - inversion H1_. subst. clear H1_.
+    apply IHceval2.
+    + assumption.
+    + reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced (p1_p2_equiv)
@@ -1695,7 +1882,41 @@ Proof.
     equivalent. *)
 
 Theorem p1_p2_equiv : cequiv p1 p2.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  assert (forall st st', st X <> 0 -> st =[p1]=> st' <-> st =[p2]=> st').
+  { intros st st' H.
+    split;
+    intros H1.
+    - exfalso.
+      apply (p1_may_diverge st st');
+      assumption.
+    - exfalso.
+      apply (p2_may_diverge st st');
+      assumption. }
+  intros st st'.
+  destruct (st X =? 0) eqn:E.
+  - (*st X = 0*)
+  split;
+  unfold p1;
+  unfold p2;
+  intros H1;
+  inversion H1;
+  subst; clear H1;
+  try (apply E_WhileFalse; assumption);
+  try (simpl in H3; rewrite E in H3; discriminate).
+  (*split.
+    + unfold p1.
+      unfold p2.
+      intros H1.
+      inversion H1;
+      subst; clear H1.
+      * (*while false*)
+        apply E_WhileFalse.
+        assumption.
+      * (*while true, discriminate*)
+        simpl in H3. rewrite E in H3. discriminate. *)
+  - apply H. apply eqb_neq in E. assumption.
+Qed.
 (** [] *)
 
 (** **** Exercise: 4 stars, advanced (p3_p4_inequiv)
@@ -1716,7 +1937,32 @@ Definition p4 : com :=
      Z := 1 }>.
 
 Theorem p3_p4_inequiv : ~ cequiv p3 p4.
-Proof. (* FILL IN HERE *) Admitted.
+Proof. 
+  (*p4产生状态是p3的子集，从p3构造状态借助cequiv带入p4推出矛盾*)
+  intros Contra.
+  unfold cequiv in Contra.
+  remember (Z !-> 2 ; X !-> 0 ; Z !->1 ; X !-> 1) as st'.
+  assert (H : (X !-> 1) =[p3]=> st'). (*利用assert转换为手动apply操作语义*)
+  { subst.
+    unfold p3.
+    eapply E_Seq. {apply E_Asgn. simpl. reflexivity. }
+    eapply E_WhileTrue.
+      { reflexivity. }
+      { eapply E_Seq; apply E_Havoc. }
+      { apply E_WhileFalse. reflexivity. } }
+  apply Contra in H.
+  subst.
+  unfold p4 in H.
+  inversion H. subst. clear H.
+  inversion H5. subst. clear H5.
+  simpl in H4.  (*发现矛盾，利用Z取值的不一致性推翻*)
+  remember (Z !-> 1; st') as st1. (*给个名字方便assert*)
+  remember (Z !-> 2; X !-> 0; Z !-> 1; X !-> 1) as st2.
+  assert (st1 Z = st2 Z).
+  { rewrite H4. reflexivity. }
+  subst. repeat rewrite t_update_eq in H.
+  discriminate.
+Qed.
 (** [] *)
 
 (** **** Exercise: 5 stars, advanced, optional (p5_p6_equiv)
@@ -1738,7 +1984,8 @@ Definition p6 : com :=
   <{ X := 1 }>.
 
 Theorem p5_p6_equiv : cequiv p5 p6.
-Proof. (* FILL IN HERE *) Admitted.
+Proof.
+  Admitted.
 (** [] *)
 
 End Himp.
