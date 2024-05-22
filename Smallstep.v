@@ -599,7 +599,8 @@ Proof. (* a corollary of [strong_progress]... *)
   { apply strong_progress. }*)
   destruct G as [G | G].
   - (* l *) apply G.
-  - (* r *) exfalso. apply H. apply G.
+  - (* r *) apply H in G. inversion G.
+  (*exfalso. apply H. apply G.*)
   (*contradiction.*)
 Qed.
 
@@ -655,7 +656,15 @@ Inductive step : tm -> tm -> Prop :=
 Lemma value_not_same_as_normal_form :
   exists v, value v /\ ~ normal_form step v.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  unfold normal_form. 
+  exists (P (P (C 0) (C 0)) (C 0)).
+  split.
+  - constructor.
+  - intros H.
+    apply H.
+    exists (P (C 0) (C 0)).
+    repeat constructor.
+Qed.
 End Temp1.
 
 (** [] *)
@@ -1054,7 +1063,8 @@ Qed.
 Lemma test_multistep_2:
   C 3 -->* C 3.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply multi_refl.
+Qed.
 (** [] *)
 
 (** **** Exercise: 1 star, standard, optional (test_multistep_3) *)
@@ -1063,7 +1073,8 @@ Lemma test_multistep_3:
    -->*
       P (C 0) (C 3).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply multi_refl.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (test_multistep_4) *)
@@ -1117,7 +1128,17 @@ Proof.
   intros x y1 y2 P1 P2.
   destruct P1 as [P11 P12].
   destruct P2 as [P21 P22].
-  (* FILL IN HERE *) Admitted.
+  induction P11; inversion P21; subst; clear P21.
+  - reflexivity.
+  - exfalso. apply P12. exists y. assumption.
+    (*这里应该是P12与H矛盾了，但是可以直接exfalso提出false*)
+  - exfalso. apply P22. exists y. assumption.
+  - apply IHP11.
+    + assumption.
+    + remember (step_deterministic x y y0) as OK.
+      rewrite (OK H H0).
+      assumption.
+Qed.
 (** [] *)
 
 (** Indeed, something stronger is true for this language (though
@@ -1309,15 +1330,15 @@ Proof. (*REVIEW*)
   intros t t' n Hs. generalize dependent n.
   induction Hs.
   - intros n H.
-    inversion H. subst.
+    inversion H. subst. clear H.
     apply E_Plus; apply E_Const.
   - intros n H.
-    inversion H. subst.
+    inversion H. subst. clear H.
     apply E_Plus.
     + apply IHHs in H2. apply H2.
     + apply H4.
   - intros n H1.
-    inversion H1. subst.
+    inversion H1. subst. clear H1.
     apply E_Plus.
     + apply H3.
     + apply IHHs in H5.
@@ -1341,9 +1362,8 @@ Proof.
   intros t t'.
   unfold normal_form_of.
   intros [H1 H3].
-  assert (exists n, t'= C n) as H2. { unfold step_normal_form.
-                                rewrite nf_same_as_value in H3.
-                                inversion H3. subst.
+  assert (exists n, t'= C n) as H2. { rewrite nf_same_as_value in H3.
+                                inversion H3. subst. clear H3.
                                 exists n. reflexivity. }
   destruct H2.
   exists x.
@@ -1353,8 +1373,7 @@ Proof.
     + rewrite H. apply E_Const.
     + apply step__eval with (t' := y).
       * apply H0.
-      * apply IHmulti. { apply H3. }
-        apply H.
+      * apply IHmulti; assumption.
 Qed.
 (** [] *)
 
@@ -1700,8 +1719,9 @@ Example par_loop_example_0:
        par_loop / empty_st  -->* <{skip}> / st'
     /\ st' X = 0.
 Proof.
-  unfold par_loop.
-  eexists. split.
+  unfold par_loop. 
+  eexists. (*eexists*)
+  split.
   - eapply multi_step.
     + apply CS_Par1.  apply CS_Asgn.
     + eapply multi_step.
@@ -1807,7 +1827,47 @@ Lemma par_body_n__Sn : forall n st,
   st X = n /\ st Y = 0 ->
   par_loop / st -->* par_loop / (X !-> S n ; st).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  intros n st [Hx Hy].
+  unfold par_loop.
+  (*RLR*)
+  eapply multi_step.
+  - apply CS_Par2. apply CS_While.
+  - eapply multi_step.
+    + apply CS_Par2.
+      apply CS_IfStep.
+      apply BS_Eq1.
+      apply AS_Id.
+    + eapply multi_step.
+      * apply CS_Par2.
+        apply CS_IfStep.
+        apply BS_Eq.
+      * rewrite Hy.
+        simpl. (*REVIEW*)
+        eapply multi_step.
+        --  apply CS_Par2.
+            apply CS_IfTrue.
+        --  eapply multi_step.
+            ++  apply CS_Par2.
+                apply CS_SeqStep.
+                apply CS_AsgnStep.
+                apply AS_Plus1.
+                apply AS_Id.
+            ++  rewrite Hx.
+                eapply multi_step.
+                **  apply CS_Par2.
+                    apply CS_SeqStep.
+                    apply CS_AsgnStep.
+                    apply AS_Plus. (*把<{n + 1}> 转为<{(n+1)}>*)
+                **  eapply multi_step.
+                    --- apply CS_Par2.
+                        apply CS_SeqStep.
+                        apply CS_Asgn.
+                    --- eapply multi_step.
+                        +++ apply CS_Par2.
+                            apply CS_SeqFinish.
+                        +++ rewrite Nat.add_1_r.
+                            apply multi_refl.
+Qed.                        
 (** [] *)
 
 (** **** Exercise: 3 stars, standard, optional (par_body_n) *)
@@ -2009,7 +2069,17 @@ Theorem normalize_ex' : exists e',
   (P (C 3) (P (C 2) (C 1)))
   -->* e' /\ value e'.
 Proof.
-  (* FILL IN HERE *) Admitted.
+  exists (C 6).
+  split.
+  - apply multi_step with (P (C 3)  (C 3)).
+    + apply ST_Plus2.
+      * apply v_const.
+      * apply ST_PlusConstConst.
+    + apply multi_step with (C 6).
+      * apply ST_PlusConstConst.
+      * apply multi_refl.
+  - apply v_const.
+Qed. 
 (** [] *)
 
 (* 2024-01-02 21:54 *)
