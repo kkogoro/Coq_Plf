@@ -860,7 +860,7 @@ Inductive has_type : context -> tm -> ty -> Prop :=
       Gamma x = Some T1 ->
       Gamma |-- x \in T1
   | T_Abs : forall Gamma x T1 T2 t1,
-      x |-> T2 ; Gamma |-- t1 \in T1 ->
+      x |-> T2 ; Gamma |-- t1 \in T1 -> (*这么写是因为有可能t1 = x*)
       Gamma |-- \x:T2, t1 \in (T2 -> T1)
   | T_App : forall T1 T2 Gamma t1 t2,
       Gamma |-- t1 \in (T2 -> T1) ->
@@ -888,7 +888,8 @@ Example typing_example_1 :
 Proof.
   apply T_Abs.
   apply T_Var.
-  apply update_eq.
+  reflexivity.
+  (*apply update_eq*)
 Qed.
 
 (** Note that, since we added the [has_type] constructors to the hints
@@ -924,7 +925,17 @@ Example typing_example_2_full :
           (y (y x)) \in
     (Bool -> (Bool -> Bool) -> Bool).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  apply T_Abs.
+  apply T_Abs.
+  apply T_App with (T2 := <{Bool}>).
+  - apply T_Var.
+    reflexivity.
+  - apply T_App with (T2 := <{Bool}>).
+    + apply T_Var.
+      reflexivity.
+    + apply T_Var.
+      reflexivity.
+Qed.
 (** [] *)
 
 (** **** Exercise: 2 stars, standard (typing_example_3)
@@ -1003,7 +1014,26 @@ Example typing_nonexample_3 :
         empty |--
           \x:S, x x \in T).
 Proof.
-  (* FILL IN HERE *) Admitted.
+  assert (HT: forall T1 T2, ~(T2 = <{T2 -> T1}>)).
+  { intros T1 T2 contra.
+    generalize dependent T1.
+    induction T2.
+    - discriminate.
+    - intros T1 H.
+      inversion H.
+      apply IHT2_1 in H1.
+      destruct H1.
+  }
+  intros [S [T contra]].
+  inversion contra; subst; clear contra.
+  inversion H4; subst; clear H4.
+  inversion H2; subst; clear H2.
+  inversion H5; subst; clear H5.
+  rewrite H2 in H1. clear H2.
+  injection H1 as H.
+  apply HT in H.
+  destruct H.
+Qed. 
 (** [] *)
 
 End STLC.

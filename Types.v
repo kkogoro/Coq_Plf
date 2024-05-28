@@ -432,7 +432,8 @@ Proof.
       * exists t3. auto.
     + (* t1 can take a step *)
       destruct H as [t1' H1].
-      exists (<{ if t1' then t2 else t3 }>). auto.
+      exists (<{ if t1' then t2 else t3 }>).
+      auto.
   - destruct IHHT.
     + left.
       apply nat_canonical in H; try assumption. auto.
@@ -630,13 +631,17 @@ Corollary soundness : forall t t' T,
   t -->* t' ->
   ~(stuck t').
 Proof.
-  intros t t' T HT P. induction P; unfold stuck; intros [R S].
-  - apply progress in HT. destruct HT.
-    + apply S. assumption.
-    + (*normal form与进展性矛盾 *) unfold step_normal_form in R. apply R in H. inversion H.
+  intros t t' T HT P. induction P.
+  - apply progress in HT. destruct HT as [HT | HT].
+    + unfold stuck. intros [_ C2].
+      contradiction.
+    + unfold stuck. intros [C1 _]. 
+      (*normal form与进展性矛盾 *) 
+      unfold step_normal_form in C1.
+      contradiction.
   - apply IHP.
-    + apply preservation with (t := x); assumption.
-    + unfold stuck. split; assumption.
+    apply preservation with (t := x);
+    assumption.
 Qed.
 
 (* ================================================================= *)
